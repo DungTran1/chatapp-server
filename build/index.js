@@ -36,7 +36,7 @@ const socket_1 = __importDefault(require("./socket"));
 dotenv.config();
 const app = (0, express_1.default)();
 app.use((0, cors_1.default)({
-    origin: ["http://localhost:3000", "https://chatapp-api-r3gm.onrender.com"],
+    origin: ["http://localhost:3000", "https://dungtran-pro.onrender.com"],
 }));
 app.use(express_1.default.urlencoded({ extended: true }));
 app.use(express_1.default.json());

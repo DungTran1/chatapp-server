@@ -45,10 +45,7 @@ let userOnline = [];
 const SocketConnect = (server) => {
     const io = new socket_io_1.Server(server, {
         cors: {
-            origin: [
-                "http://localhost:3000",
-                "https://chatapp-api-r3gm.onrender.com",
-            ],
+            origin: ["http://localhost:3000", "https://dungtran-pro.onrender.com"],
         },
     });
     const connection = (socket) => {
