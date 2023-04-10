@@ -1,8 +1,8 @@
 export interface User {
   _id: string;
-  displayName?: string;
-  email?: string;
-  photoURL?: string;
+  displayName: string;
+  email: string;
+  photoURL: string;
 }
 export interface Reaction {
   user: User;
@@ -14,22 +14,22 @@ export interface UserInRoom {
 }
 export interface Message {
   _id: string;
-  roomId?: string;
-  text?: string;
-  type?: "Notification" | "Sending" | "Revocation";
-  files?: string[];
-  reply?: Message;
-  reaction?: Reaction[] | string[];
+  roomId: string;
+  text: string;
+  type: "Notification" | "Sending" | "Revocation";
+  files: string[];
+  reply: Message;
+  reaction: Reaction[] | string[];
   actedByUser: User | string | null;
-  createdAt?: Date;
+  createdAt: Date;
 }
 export interface Room {
   _id: string;
-  type?: "Group" | "Private";
+  type: "Group" | "Private";
   isAcceptLink?: boolean;
-  name?: string;
+  name: string;
   initiator: string;
-  photoURL?: string;
+  photoURL: string;
   users: UserInRoom[];
   lastMessage: Message;
 }

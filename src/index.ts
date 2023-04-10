@@ -10,7 +10,7 @@ const app = express();
 
 app.use(
   cors({
-    origin: ["http://localhost:3000", "https://chatapp-api-r3gm.onrender.com"],
+    origin: ["http://localhost:3000", "https://dungtran-pro.onrender.com"],
   })
 );
 
