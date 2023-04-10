@@ -8,7 +8,11 @@ import SocketConnect from "./socket";
 dotenv.config();
 const app = express();
 
-app.use(cors());
+app.use(
+  cors({
+    origin: ["http://localhost:3000", "https://chatapp-api-r3gm.onrender.com"],
+  })
+);
 
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
