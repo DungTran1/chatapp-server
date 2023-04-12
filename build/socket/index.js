@@ -45,7 +45,8 @@ let userOnline = [];
 const SocketConnect = (server) => {
     const io = new socket_io_1.Server(server, {
         cors: {
-            origin: ["http://localhost:3000", "https://dungtran-pro.onrender.com"],
+            origin: process.env.CLIENT_DOMAIN,
+            credentials: true,
         },
     });
     const connection = (socket) => {
@@ -62,45 +63,41 @@ const SocketConnect = (server) => {
         });
         socket.on("create_room", (data) => __awaiter(void 0, void 0, void 0, function* () {
             const _idRoom = (0, uuid_1.v4)();
-            const _idMess = (0, uuid_1.v4)();
-            const message = data.usersAdded.map((user, index) => ({
-                _id: _idMess + index,
-                text: `đã thêm ${user.displayName}`,
-                type: "Notification",
-                actedByUser: user,
-                roomId: _idRoom,
-            }));
-            const lastMessage = message[message.length - 1];
-            io.emit("receive_created_room", {
-                status: true,
-                room: roomEmit({
-                    _id: _idRoom,
-                    name: data.initiator.displayName,
-                    initiator: data.initiator._id,
-                    users: [
-                        { user: data.initiator, nickname: null },
-                        ...data.usersAdded.map((id) => ({
-                            user: id,
-                            nickname: null,
-                        })),
-                    ],
-                    lastMessage: messEmit(lastMessage),
-                }),
+            const message = data.usersAdded.map((user, index) => {
+                const _idMess = (0, uuid_1.v4)();
+                return {
+                    _id: _idMess,
+                    text: `đã thêm ${user.displayName}`,
+                    type: "Notification",
+                    actedByUser: data.initiator._id,
+                    roomId: _idRoom,
+                };
             });
-            yield Room_1.default.create({
+            const lastMessage = message[message.length - 1];
+            const room = roomEmit({
                 _id: _idRoom,
                 name: data.initiator.displayName,
                 initiator: data.initiator._id,
                 users: [
+                    { user: data.initiator, nickname: null },
+                    ...data.usersAdded.map((user) => ({
+                        user,
+                        nickname: null,
+                    })),
+                ],
+                lastMessage: messEmit(Object.assign(Object.assign({}, lastMessage), { actedByUser: data.initiator })),
+            });
+            io.emit("receive_created_room", {
+                status: true,
+                room,
+            });
+            yield Room_1.default.create(Object.assign(Object.assign({}, room), { users: [
                     { user: data.initiator._id, nickname: "" },
                     ...data.usersAdded.map((user) => ({
                         user: user._id,
                         nickname: "",
                     })),
-                ],
-                lastMessage: lastMessage._id,
-                photoURL: data.photoURL,
-            });
+                ], lastMessage: lastMessage._id }));
             yield Message_1.default.insertMany(message);
         }));
         socket.on("create_room_with_private", (data) => __awaiter(void 0, void 0, void 0, function* () {
@@ -170,7 +167,6 @@ const SocketConnect = (server) => {
             io.in(data.roomId).emit("receive_send_message", {
                 message,
             });
-            io.emit("receive_reset_room", "");
             io.emit("receive_last_message", {
                 lastMessage: message,
             });
@@ -179,49 +175,57 @@ const SocketConnect = (server) => {
                 initiator: (_c = data.userIsAppoitment.user) === null || _c === void 0 ? void 0 : _c._id,
                 lastMessage: _idMessage,
             });
+            io.emit("receive_reset_room", "");
         }));
         socket.on("add_user", (data) => __awaiter(void 0, void 0, void 0, function* () {
-            const _idMess = (0, uuid_1.v4)();
-            const users = data.userAdded.map((e) => ({
-                user: e._id,
-                nickname: "",
-            }));
-            const message = () => {
-                let newMess = [];
-                for (const i of data.userAdded) {
-                    const messAdd = messEmit({
-                        _id: _idMess,
-                        text: `đã thêm ${i.displayName}`,
-                        roomId: data.roomId,
-                        type: "Notification",
-                        actedByUser: data.userAdd._id,
+            try {
+                const users = data.userAdded.map((e) => ({
+                    user: e._id,
+                    nickname: "",
+                }));
+                const message = () => {
+                    let newMess = [];
+                    for (const i of data.userAdded) {
+                        const _idMess = (0, uuid_1.v4)();
+                        const messAdd = messEmit({
+                            _id: _idMess,
+                            text: `đã thêm ${i.displayName}`,
+                            roomId: data.roomId,
+                            type: "Notification",
+                            actedByUser: data.userAdd._id,
+                        });
+                        io.in(data.roomId).emit("receive_send_message", {
+                            message: Object.assign(Object.assign({}, messAdd), { actedByUser: data.userAdd }),
+                        });
+                        newMess.push(messAdd);
+                    }
+                    io.emit("receive_last_message", {
+                        lastMessage: Object.assign(Object.assign({}, newMess[newMess.length - 1]), { actedByUser: data.userAdd }),
                     });
-                    io.in(data.roomId).emit("receive_send_message", {
-                        message: Object.assign(Object.assign({}, messAdd), { actedByUser: data.userAdd }),
-                    });
-                    newMess.push(messAdd);
-                }
-                io.emit("receive_reset_room", "");
-                io.emit("receive_last_message", {
-                    lastMessage: Object.assign(Object.assign({}, newMess[newMess.length - 1]), { actedByUser: data.userAdd }),
+                    return newMess;
+                };
+                const messageArr = message();
+                yield Message_1.default.insertMany(messageArr);
+                yield Room_1.default.updateOne({ _id: data.roomId }, {
+                    $push: { users: { $each: users } },
+                    lastMessage: messageArr[messageArr.length - 1]._id,
                 });
-                return newMess;
-            };
-            yield Message_1.default.insertMany(message());
-            yield Room_1.default.updateOne({ _id: data.roomId }, {
-                $push: { users: { $each: users } },
-                lastMessage: _idMess,
-            });
+                io.emit("receive_reset_room", "");
+            }
+            catch (error) {
+                console.log(error);
+            }
         }));
         socket.on("connect_to_room", (data) => __awaiter(void 0, void 0, void 0, function* () {
-            if (data.oldRoom) {
+            if (data.oldRoom)
                 socket.leave(data.oldRoom);
-            }
-            socket.join(data.newRoom);
+            if (data.newRoom)
+                socket.join(data.newRoom);
         }));
         socket.on("send_message", (data) => __awaiter(void 0, void 0, void 0, function* () {
             var _d;
             try {
+                console.log(data.roomId);
                 const _id = (0, uuid_1.v4)();
                 const message = messEmit({
                     _id,
@@ -288,15 +292,19 @@ const SocketConnect = (server) => {
             io.emit("receive_last_message", {
                 lastMessage: message,
             });
-            const userClientOnline = userOnline.find((u) => { var _a; return ((_a = userRemoved.user) === null || _a === void 0 ? void 0 : _a._id) === Object.values(u)[0]; });
-            if (!userClientOnline)
-                return;
-            const clientId = Object.keys(userClientOnline)[0];
-            io.to(clientId).emit("reiceve_reset_room", {
-                roomId: data.roomId,
-            });
             yield Message_1.default.create(Object.assign(Object.assign({}, message), { actedByUser: data.admin._id }));
-            yield Room_1.default.updateOne({ _id: data.roomId }, { $pull: { users: { user: (_g = userRemoved.user) === null || _g === void 0 ? void 0 : _g._id } } });
+            yield Room_1.default.updateOne({ _id: data.roomId }, {
+                $pull: { users: { user: (_g = userRemoved.user) === null || _g === void 0 ? void 0 : _g._id } },
+                lastMessage: _id,
+            });
+            const userClientOnline = userOnline.find((u) => { var _a; return ((_a = userRemoved.user) === null || _a === void 0 ? void 0 : _a._id) === Object.values(u)[0]; });
+            if (!userClientOnline) {
+                io.emit("receive_reset_room", "");
+                return;
+            }
+            const clientId = Object.keys(userClientOnline)[0];
+            io.except(clientId).emit("receive_reset_room", "");
+            io.to(clientId).emit("receive_reset_room", data.roomId);
         }));
         socket.on("leave_room", (data) => __awaiter(void 0, void 0, void 0, function* () {
             var _h, _j;
@@ -313,16 +321,16 @@ const SocketConnect = (server) => {
             io.in(data.roomId).emit("receive_send_message", {
                 message,
             });
-            socket.emit("receive_reset_room", { roomId: data.roomId });
-            socket.in(data.roomId).emit("receive_reset_room", "");
             io.emit("receive_last_message", {
                 lastMessage: message,
             });
             yield Message_1.default.create(Object.assign(Object.assign({}, message), { actedByUser: (_h = data.userLeave.user) === null || _h === void 0 ? void 0 : _h._id }));
             yield Room_1.default.updateOne({ _id: data.roomId }, { lastMessage: _id, $pull: { users: { user: (_j = userLeave.user) === null || _j === void 0 ? void 0 : _j._id } } });
+            socket.emit("receive_reset_room", data.roomId);
+            socket.in(data.roomId).emit("receive_reset_room", "");
         }));
         socket.on("delete_chat_group_room", (data) => __awaiter(void 0, void 0, void 0, function* () {
-            io.emit("receive_reset_room", data);
+            io.emit("receive_reset_room", data.roomId);
             yield Room_1.default.deleteOne({ _id: data.roomId });
             yield Message_1.default.deleteMany({ roomId: data.roomId });
         }));
@@ -385,12 +393,12 @@ const SocketConnect = (server) => {
                 io.in(data.roomId).emit("receive_send_message", {
                     message: message,
                 });
-                io.emit("receive_reset_room", "");
                 io.emit("receive_last_message", {
                     lastMessage: message,
                 });
                 yield Room_1.default.updateOne({ _id: data.roomId, "users.user": data.userIsSet._id }, { $set: { lastMessage: _id, "users.$.nickname": data.newNickname } });
                 yield Message_1.default.create(Object.assign(Object.assign({}, message), { actedByUser: data.userSet._id }));
+                io.emit("receive_reset_room", "");
             }
             catch (error) {
                 console.log(error);
@@ -409,12 +417,12 @@ const SocketConnect = (server) => {
                 io.in(data.roomId).emit("receive_send_message", {
                     message,
                 });
-                io.emit("receive_reset_room", "", "");
                 io.emit("receive_last_message", {
                     lastMessage: message,
                 });
                 yield Room_1.default.updateOne({ _id: data.roomId }, { name: data.newRoomName, lastMessage: _id });
                 yield Message_1.default.create(Object.assign(Object.assign({}, message), { actedByUser: data.userSet._id }));
+                io.emit("receive_reset_room", "");
             }
             catch (error) {
                 console.log(error);
@@ -439,7 +447,6 @@ const SocketConnect = (server) => {
             };
             socket.join(data.roomId);
             io.in(data.roomId).emit("receive_send_message", Object.assign({}, message));
-            io.emit("receive_reset_room", "");
             io.emit("receive_last_message", {
                 lastMessage: message.message,
             });
@@ -448,6 +455,7 @@ const SocketConnect = (server) => {
                 lastMessage: _id,
             });
             yield Message_1.default.create(Object.assign(Object.assign({}, message), { actedByUser: data.userJoin._id }));
+            io.emit("receive_reset_room", "");
         }));
         socket.on("disconnect", (reason) => {
             userOnline = userOnline.filter((user) => Object.keys(user)[0] !== socket.id);

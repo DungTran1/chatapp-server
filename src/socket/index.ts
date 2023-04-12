@@ -76,7 +76,8 @@ let userOnline: { [key: string]: string }[] = [];
 const SocketConnect = (server: any) => {
   const io = new Server(server, {
     cors: {
-      origin: ["http://localhost:3000", "https://dungtran-pro.onrender.com"],
+      origin: process.env.CLIENT_DOMAIN,
+      credentials: true,
     },
   });
   const connection = (socket: Socket) => {
@@ -101,35 +102,40 @@ const SocketConnect = (server: any) => {
         photoURL: string;
       }) => {
         const _idRoom = uuidv4();
-        const _idMess = uuidv4();
-        const message = data.usersAdded.map((user, index) => ({
-          _id: _idMess + index,
-          text: `đã thêm ${user.displayName}`,
-          type: "Notification",
-          actedByUser: user,
-          roomId: _idRoom,
-        }));
+        const message = data.usersAdded.map((user, index) => {
+          const _idMess = uuidv4();
+          return {
+            _id: _idMess,
+            text: `đã thêm ${user.displayName}`,
+            type: "Notification",
+            actedByUser: data.initiator._id,
+            roomId: _idRoom,
+          };
+        });
         const lastMessage = message[message.length - 1];
-        io.emit("receive_created_room", {
-          status: true,
-          room: roomEmit({
-            _id: _idRoom,
-            name: data.initiator.displayName as string,
-            initiator: data.initiator._id,
-            users: [
-              { user: data.initiator, nickname: null },
-              ...(data.usersAdded.map((id) => ({
-                user: id,
-                nickname: null,
-              })) as UserInRoom[]),
-            ],
-            lastMessage: messEmit(lastMessage),
+
+        const room = roomEmit({
+          _id: _idRoom,
+          name: data.initiator.displayName as string,
+          initiator: data.initiator._id,
+          users: [
+            { user: data.initiator, nickname: null },
+            ...(data.usersAdded.map((user) => ({
+              user,
+              nickname: null,
+            })) as UserInRoom[]),
+          ],
+          lastMessage: messEmit({
+            ...lastMessage,
+            actedByUser: data.initiator,
           }),
         });
+        io.emit("receive_created_room", {
+          status: true,
+          room,
+        });
         await RoomModel.create({
-          _id: _idRoom,
-          name: data.initiator.displayName,
-          initiator: data.initiator._id,
+          ...room,
           users: [
             { user: data.initiator._id, nickname: "" },
             ...data.usersAdded.map((user) => ({
@@ -138,7 +144,6 @@ const SocketConnect = (server: any) => {
             })),
           ],
           lastMessage: lastMessage._id,
-          photoURL: data.photoURL,
         });
         await MessageModel.insertMany(message);
       }
@@ -217,7 +222,7 @@ const SocketConnect = (server: any) => {
         io.in(data.roomId).emit("receive_send_message", {
           message,
         });
-        io.emit("receive_reset_room", "");
+
         io.emit("receive_last_message", {
           lastMessage: message,
         });
@@ -232,62 +237,67 @@ const SocketConnect = (server: any) => {
             lastMessage: _idMessage,
           }
         );
+        io.emit("receive_reset_room", "");
       }
     );
     socket.on(
       "add_user",
       async (data: { roomId: string; userAdd: User; userAdded: User[] }) => {
-        const _idMess = uuidv4();
-        const users = data.userAdded.map((e) => ({
-          user: e._id,
-          nickname: "",
-        }));
-        const message = () => {
-          let newMess = [];
-          for (const i of data.userAdded) {
-            const messAdd = messEmit({
-              _id: _idMess,
-              text: `đã thêm ${i.displayName}`,
-              roomId: data.roomId,
-              type: "Notification",
-              actedByUser: data.userAdd._id,
+        try {
+          const users = data.userAdded.map((e) => ({
+            user: e._id,
+            nickname: "",
+          }));
+          const message = () => {
+            let newMess = [];
+            for (const i of data.userAdded) {
+              const _idMess = uuidv4();
+              const messAdd = messEmit({
+                _id: _idMess,
+                text: `đã thêm ${i.displayName}`,
+                roomId: data.roomId,
+                type: "Notification",
+                actedByUser: data.userAdd._id,
+              });
+              io.in(data.roomId).emit("receive_send_message", {
+                message: { ...messAdd, actedByUser: data.userAdd },
+              });
+              newMess.push(messAdd);
+            }
+            io.emit("receive_last_message", {
+              lastMessage: {
+                ...newMess[newMess.length - 1],
+                actedByUser: data.userAdd,
+              },
             });
-            io.in(data.roomId).emit("receive_send_message", {
-              message: { ...messAdd, actedByUser: data.userAdd },
-            });
-            newMess.push(messAdd);
-          }
-          io.emit("receive_reset_room", "");
-          io.emit("receive_last_message", {
-            lastMessage: {
-              ...newMess[newMess.length - 1],
-              actedByUser: data.userAdd,
-            },
-          });
-          return newMess;
-        };
+            return newMess;
+          };
 
-        await MessageModel.insertMany(message());
-        await RoomModel.updateOne(
-          { _id: data.roomId },
-          {
-            $push: { users: { $each: users } },
-            lastMessage: _idMess,
-          }
-        );
+          const messageArr = message();
+          await MessageModel.insertMany(messageArr);
+          await RoomModel.updateOne(
+            { _id: data.roomId },
+            {
+              $push: { users: { $each: users } },
+              lastMessage: messageArr[messageArr.length - 1]._id,
+            }
+          );
+          io.emit("receive_reset_room", "");
+        } catch (error) {
+          console.log(error);
+        }
       }
     );
     socket.on(
       "connect_to_room",
       async (data: { newRoom: string; userId: string; oldRoom: string }) => {
-        if (data.oldRoom) {
-          socket.leave(data.oldRoom);
-        }
-        socket.join(data.newRoom);
+        if (data.oldRoom) socket.leave(data.oldRoom);
+        if (data.newRoom) socket.join(data.newRoom);
       }
     );
     socket.on("send_message", async (data) => {
       try {
+        console.log(data.roomId);
         const _id = uuidv4();
         const message = messEmit({
           _id,
@@ -380,19 +390,24 @@ const SocketConnect = (server: any) => {
         io.emit("receive_last_message", {
           lastMessage: message,
         });
-        const userClientOnline = userOnline.find(
-          (u) => userRemoved.user?._id === Object.values(u)[0]
-        );
-        if (!userClientOnline) return;
-        const clientId = Object.keys(userClientOnline)[0];
-        io.to(clientId).emit("reiceve_reset_room", {
-          roomId: data.roomId,
-        });
         await MessageModel.create({ ...message, actedByUser: data.admin._id });
         await RoomModel.updateOne(
           { _id: data.roomId },
-          { $pull: { users: { user: userRemoved.user?._id } } }
+          {
+            $pull: { users: { user: userRemoved.user?._id } },
+            lastMessage: _id,
+          }
         );
+        const userClientOnline = userOnline.find(
+          (u) => userRemoved.user?._id === Object.values(u)[0]
+        );
+        if (!userClientOnline) {
+          io.emit("receive_reset_room", "");
+          return;
+        }
+        const clientId = Object.keys(userClientOnline)[0];
+        io.except(clientId).emit("receive_reset_room", "");
+        io.to(clientId).emit("receive_reset_room", data.roomId);
       }
     );
     socket.on(
@@ -413,8 +428,6 @@ const SocketConnect = (server: any) => {
         io.in(data.roomId).emit("receive_send_message", {
           message,
         });
-        socket.emit("receive_reset_room", { roomId: data.roomId });
-        socket.in(data.roomId).emit("receive_reset_room", "");
         io.emit("receive_last_message", {
           lastMessage: message,
         });
@@ -427,10 +440,12 @@ const SocketConnect = (server: any) => {
           { _id: data.roomId },
           { lastMessage: _id, $pull: { users: { user: userLeave.user?._id } } }
         );
+        socket.emit("receive_reset_room", data.roomId);
+        socket.in(data.roomId).emit("receive_reset_room", "");
       }
     );
     socket.on("delete_chat_group_room", async (data: { roomId: string }) => {
-      io.emit("receive_reset_room", data);
+      io.emit("receive_reset_room", data.roomId);
       await RoomModel.deleteOne({ _id: data.roomId });
       await MessageModel.deleteMany({ roomId: data.roomId });
     });
@@ -516,7 +531,7 @@ const SocketConnect = (server: any) => {
           io.in(data.roomId).emit("receive_send_message", {
             message: message,
           });
-          io.emit("receive_reset_room", "");
+
           io.emit("receive_last_message", {
             lastMessage: message,
           });
@@ -528,6 +543,7 @@ const SocketConnect = (server: any) => {
             ...message,
             actedByUser: data.userSet._id,
           });
+          io.emit("receive_reset_room", "");
         } catch (error) {
           console.log(error);
         }
@@ -548,7 +564,7 @@ const SocketConnect = (server: any) => {
           io.in(data.roomId).emit("receive_send_message", {
             message,
           });
-          io.emit("receive_reset_room", "", "");
+
           io.emit("receive_last_message", {
             lastMessage: message,
           });
@@ -560,6 +576,7 @@ const SocketConnect = (server: any) => {
             ...message,
             actedByUser: data.userSet._id,
           });
+          io.emit("receive_reset_room", "");
         } catch (error) {
           console.log(error);
         }
@@ -588,7 +605,7 @@ const SocketConnect = (server: any) => {
         io.in(data.roomId).emit("receive_send_message", {
           ...message,
         });
-        io.emit("receive_reset_room", "");
+
         io.emit("receive_last_message", {
           lastMessage: message.message,
         });
@@ -603,6 +620,7 @@ const SocketConnect = (server: any) => {
           ...message,
           actedByUser: data.userJoin._id,
         });
+        io.emit("receive_reset_room", "");
       }
     );
     socket.on("disconnect", (reason) => {

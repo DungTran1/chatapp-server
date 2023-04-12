@@ -2,10 +2,18 @@ import express from "express";
 import User from "../models/User";
 import Room from "../models/Room";
 import Message from "../models/Message";
-import Nickname from "../models/NickName";
 
 const router = express.Router();
 
+router.post("/signin", async (req, res) => {
+  try {
+    const user = await User.findOne({ _id: req.body._id });
+
+    return res.json(user);
+  } catch (error) {
+    console.log(error);
+  }
+});
 router.post("/signup", (req, res) => {
   try {
     const displayName = req.body.displayName;
@@ -24,18 +32,6 @@ router.post("/signup", (req, res) => {
     console.log(error);
     return res.json({ status: false });
   }
-});
-router.delete("/delete", async (req, res) => {
-  try {
-    const uid = req.body.uid;
-    await User.deleteOne({ uid });
-    return res.json({ status: true, message: "Delete successfully" });
-  } catch (error) {
-    return res.json({ status: false });
-  }
-});
-router.get("/currentUser/:id", (req, res) => {
-  const uid = req.params.id;
 });
 router.get("/getCurrentRoom/:id", async (req, res) => {
   try {
@@ -81,11 +77,11 @@ router.post("/updateProfile", async (req, res) => {
 router.post("/updateRoomProfile", async (req, res) => {
   try {
     const roomId = req.body.roomId;
-    const photoRoomURL = req.body.photoRoomURL;
+    const photoURL = req.body.photoURL;
     await Room.updateOne(
       { _id: roomId },
       {
-        photoRoomURL: photoRoomURL,
+        photoURL: photoURL,
       }
     );
     return res.status(200).send();
@@ -264,7 +260,6 @@ router.get("/getMedia/:id", async (req, res) => {
 });
 router.get("/delete", async (req, res) => {
   // await User.deleteMany({});
-  await Nickname.deleteMany({});
   await Room.deleteMany({});
   await Message.deleteMany({});
 

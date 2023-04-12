@@ -5,7 +5,6 @@ const UserSchema = new mongoose.Schema(
     email: { type: String },
     displayName: { type: String },
     photoURL: { type: String },
-    // roomJoined: [{ type: String, ref: "rooms" }],
   },
   { timestamps: true, _id: false }
 );

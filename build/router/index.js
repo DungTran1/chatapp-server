@@ -16,8 +16,16 @@ const express_1 = __importDefault(require("express"));
 const User_1 = __importDefault(require("../models/User"));
 const Room_1 = __importDefault(require("../models/Room"));
 const Message_1 = __importDefault(require("../models/Message"));
-const NickName_1 = __importDefault(require("../models/NickName"));
 const router = express_1.default.Router();
+router.post("/signin", (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const user = yield User_1.default.findOne({ _id: req.body._id });
+        return res.json(user);
+    }
+    catch (error) {
+        console.log(error);
+    }
+}));
 router.post("/signup", (req, res) => {
     try {
         const displayName = req.body.displayName;
@@ -37,19 +45,6 @@ router.post("/signup", (req, res) => {
         console.log(error);
         return res.json({ status: false });
     }
-});
-router.delete("/delete", (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    try {
-        const uid = req.body.uid;
-        yield User_1.default.deleteOne({ uid });
-        return res.json({ status: true, message: "Delete successfully" });
-    }
-    catch (error) {
-        return res.json({ status: false });
-    }
-}));
-router.get("/currentUser/:id", (req, res) => {
-    const uid = req.params.id;
 });
 router.get("/getCurrentRoom/:id", (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
@@ -91,9 +86,9 @@ router.post("/updateProfile", (req, res) => __awaiter(void 0, void 0, void 0, fu
 router.post("/updateRoomProfile", (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const roomId = req.body.roomId;
-        const photoRoomURL = req.body.photoRoomURL;
+        const photoURL = req.body.photoURL;
         yield Room_1.default.updateOne({ _id: roomId }, {
-            photoRoomURL: photoRoomURL,
+            photoURL: photoURL,
         });
         return res.status(200).send();
     }
@@ -271,7 +266,6 @@ router.get("/getMedia/:id", (req, res) => __awaiter(void 0, void 0, void 0, func
 }));
 router.get("/delete", (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     // await User.deleteMany({});
-    yield NickName_1.default.deleteMany({});
     yield Room_1.default.deleteMany({});
     yield Message_1.default.deleteMany({});
     return res.send(true);

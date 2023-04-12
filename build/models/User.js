@@ -9,7 +9,6 @@ const UserSchema = new mongoose_1.default.Schema({
     email: { type: String },
     displayName: { type: String },
     photoURL: { type: String },
-    // roomJoined: [{ type: String, ref: "rooms" }],
 }, { timestamps: true, _id: false });
 const User = mongoose_1.default.model("users", UserSchema);
 exports.default = User;
