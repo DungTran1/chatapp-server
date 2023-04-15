@@ -29,12 +29,11 @@ router.post("/signin", (req, res) => __awaiter(void 0, void 0, void 0, function*
 router.post("/signup", (req, res) => {
     try {
         const displayName = req.body.displayName;
-        const uid = req.body.uid;
+        const _id = req.body._id;
         const photoURL = req.body.photoURL;
         const email = req.body.email;
         new User_1.default({
-            _id: uid,
-            // uid,
+            _id,
             displayName,
             email,
             photoURL,

@@ -3,7 +3,7 @@ import RoomModel from "../models/Room";
 import UserModel from "../models/User";
 import MessageModel from "../models/Message";
 import { v4 as uuidv4 } from "uuid";
-import { Message, Reaction, Room, User, UserInRoom } from "../service/type";
+import { Message, User, UserInRoom } from "../service/type";
 type messEmittype = {
   _id: string;
   roomId: string;
@@ -29,7 +29,7 @@ type roomEmitFunction = (room: roomEmitType) => roomEmitType;
 type messEmitFunction = (mess: messEmittype) => messEmittype;
 const roomEmit: roomEmitFunction = ({
   _id,
-  name,
+  name = "",
   isAcceptLink = false,
   initiator,
   type = "Group",
@@ -95,6 +95,13 @@ const SocketConnect = (server: any) => {
       }
     });
     socket.on(
+      "subscribe_room",
+      async (data: { newRoom: string; oldRoom: string }) => {
+        if (data.oldRoom) socket.leave(data.oldRoom);
+        if (data.newRoom) socket.join(data.newRoom);
+      }
+    );
+    socket.on(
       "create_room",
       async (data: {
         initiator: User;
@@ -148,58 +155,60 @@ const SocketConnect = (server: any) => {
         await MessageModel.insertMany(message);
       }
     );
-    socket.on("create_room_with_private", async (data) => {
-      const _idRoom = uuidv4();
-      const _idMess = uuidv4();
-      const date = new Date();
-      const message = `Bắt đầu đoạn chat ${date.getHours()}:${date.getMinutes()}`;
-      const exist = await RoomModel.findOne({
-        type: "private",
-        initiator: data.currentUser._id,
-      });
-      if (exist) {
-        return;
-      }
-      io.emit("receive_created_room", {
-        status: true,
-        room: roomEmit({
+    socket.on(
+      "create_room_with_private",
+      async (data: { UserStartChat: User; UserChatWith: User }) => {
+        const _idRoom = uuidv4();
+        const _idMess = uuidv4();
+        const date = new Date();
+        const message = `Bắt đầu đoạn chat ${date.getHours()}:${date.getMinutes()}`;
+        const exist = await RoomModel.findOne({
+          type: "Private",
+          "users.user": {
+            $all: [data.UserStartChat._id, data.UserChatWith._id],
+          },
+        });
+        if (exist) {
+          return;
+        }
+        io.emit("receive_created_room", {
+          status: true,
+          room: roomEmit({
+            _id: _idRoom,
+            initiator: data.UserStartChat._id,
+            type: "Private",
+            lastMessage: messEmit({
+              _id: _idMess,
+              roomId: _idRoom,
+              text: message,
+              type: "Notification",
+              actedByUser: null,
+            }),
+            users: [
+              { user: data.UserStartChat, nickname: "" },
+              { user: data.UserChatWith, nickname: "" },
+            ],
+          }),
+        });
+        await MessageModel.create({
+          _id: _idMess,
+          type: "Notification",
+          roomId: _idRoom,
+          text: message,
+        });
+        await RoomModel.create({
           _id: _idRoom,
           name: "",
-          initiator: data.currentUser._id,
           type: "Private",
-          photoURL: data.photoURL,
-          lastMessage: messEmit({
-            _id: _idMess,
-            roomId: data.roomId,
-            text: message,
-            type: "Notification",
-            actedByUser: null,
-          }),
+          initiator: data.UserStartChat._id,
           users: [
-            { user: data.currentUser, nickname: null },
-            { user: data.privateChatInviting, nickname: null },
+            { user: data.UserStartChat._id },
+            { user: data.UserChatWith._id },
           ],
-        }),
-      });
-      await MessageModel.create({
-        _id: _idMess,
-        type: "Notification",
-        roomId: _idRoom,
-        text: message,
-      });
-      await RoomModel.create({
-        _id: _idRoom,
-        name: "",
-        type: "Private",
-        initiator: data.currentUser._id,
-        users: [
-          { user: data.currentUser._id },
-          { user: data.privateChatInviting._id },
-        ],
-        lastMessage: _idMess,
-        photoRoomURL: data.photoRoomURL,
-      });
-    });
+          lastMessage: _idMess,
+        });
+      }
+    );
     socket.on(
       "appoitment_as_administrator",
       async (data: {
@@ -288,16 +297,8 @@ const SocketConnect = (server: any) => {
         }
       }
     );
-    socket.on(
-      "connect_to_room",
-      async (data: { newRoom: string; userId: string; oldRoom: string }) => {
-        if (data.oldRoom) socket.leave(data.oldRoom);
-        if (data.newRoom) socket.join(data.newRoom);
-      }
-    );
     socket.on("send_message", async (data) => {
       try {
-        console.log(data.roomId);
         const _id = uuidv4();
         const message = messEmit({
           _id,
@@ -585,6 +586,7 @@ const SocketConnect = (server: any) => {
     socket.on(
       "join_room_with_link",
       async (data: { userJoin: User; roomId: string }) => {
+        socket.join(data.roomId);
         const _id = uuidv4();
         const userExist = await RoomModel.findOne({
           _id: data.roomId,
@@ -601,7 +603,7 @@ const SocketConnect = (server: any) => {
             actedByUser: data.userJoin,
           }),
         };
-        socket.join(data.roomId);
+
         io.in(data.roomId).emit("receive_send_message", {
           ...message,
         });
@@ -635,9 +637,5 @@ const SocketConnect = (server: any) => {
     });
   };
   io.on("connection", connection);
-  io.on("disconnect", (socket) => {
-    io.disconnectSockets();
-    console.log("disconnect at  " + socket);
-  });
 };
 export default SocketConnect;

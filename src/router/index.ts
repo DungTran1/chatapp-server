@@ -17,12 +17,11 @@ router.post("/signin", async (req, res) => {
 router.post("/signup", (req, res) => {
   try {
     const displayName = req.body.displayName;
-    const uid = req.body.uid;
+    const _id = req.body._id;
     const photoURL = req.body.photoURL;
     const email = req.body.email;
     new User({
-      _id: uid,
-      // uid,
+      _id,
       displayName,
       email,
       photoURL,
@@ -187,6 +186,7 @@ router.get("/isAcceptLink", async (req, res) => {
       _id: roomId,
     });
     const userExist = room?.users.find((u) => u.user === userId) ? true : false;
+
     const isAcceptLink = room?.isAcceptLink ? true : false;
     return res.json({ userExist, isAcceptLink });
   } catch (error) {

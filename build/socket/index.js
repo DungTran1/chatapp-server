@@ -16,7 +16,7 @@ const socket_io_1 = require("socket.io");
 const Room_1 = __importDefault(require("../models/Room"));
 const Message_1 = __importDefault(require("../models/Message"));
 const uuid_1 = require("uuid");
-const roomEmit = ({ _id, name, isAcceptLink = false, initiator, type = "Group", photoURL = "", lastMessage, users, }) => {
+const roomEmit = ({ _id, name = "", isAcceptLink = false, initiator, type = "Group", photoURL = "", lastMessage, users, }) => {
     return {
         _id,
         name,
@@ -61,6 +61,12 @@ const SocketConnect = (server) => {
                 });
             }
         });
+        socket.on("subscribe_room", (data) => __awaiter(void 0, void 0, void 0, function* () {
+            if (data.oldRoom)
+                socket.leave(data.oldRoom);
+            if (data.newRoom)
+                socket.join(data.newRoom);
+        }));
         socket.on("create_room", (data) => __awaiter(void 0, void 0, void 0, function* () {
             const _idRoom = (0, uuid_1.v4)();
             const message = data.usersAdded.map((user, index) => {
@@ -106,8 +112,10 @@ const SocketConnect = (server) => {
             const date = new Date();
             const message = `Bắt đầu đoạn chat ${date.getHours()}:${date.getMinutes()}`;
             const exist = yield Room_1.default.findOne({
-                type: "private",
-                initiator: data.currentUser._id,
+                type: "Private",
+                "users.user": {
+                    $all: [data.UserStartChat._id, data.UserChatWith._id],
+                },
             });
             if (exist) {
                 return;
@@ -116,20 +124,18 @@ const SocketConnect = (server) => {
                 status: true,
                 room: roomEmit({
                     _id: _idRoom,
-                    name: "",
-                    initiator: data.currentUser._id,
+                    initiator: data.UserStartChat._id,
                     type: "Private",
-                    photoURL: data.photoURL,
                     lastMessage: messEmit({
                         _id: _idMess,
-                        roomId: data.roomId,
+                        roomId: _idRoom,
                         text: message,
                         type: "Notification",
                         actedByUser: null,
                     }),
                     users: [
-                        { user: data.currentUser, nickname: null },
-                        { user: data.privateChatInviting, nickname: null },
+                        { user: data.UserStartChat, nickname: "" },
+                        { user: data.UserChatWith, nickname: "" },
                     ],
                 }),
             });
@@ -143,13 +149,12 @@ const SocketConnect = (server) => {
                 _id: _idRoom,
                 name: "",
                 type: "Private",
-                initiator: data.currentUser._id,
+                initiator: data.UserStartChat._id,
                 users: [
-                    { user: data.currentUser._id },
-                    { user: data.privateChatInviting._id },
+                    { user: data.UserStartChat._id },
+                    { user: data.UserChatWith._id },
                 ],
                 lastMessage: _idMess,
-                photoRoomURL: data.photoRoomURL,
             });
         }));
         socket.on("appoitment_as_administrator", (data) => __awaiter(void 0, void 0, void 0, function* () {
@@ -216,16 +221,9 @@ const SocketConnect = (server) => {
                 console.log(error);
             }
         }));
-        socket.on("connect_to_room", (data) => __awaiter(void 0, void 0, void 0, function* () {
-            if (data.oldRoom)
-                socket.leave(data.oldRoom);
-            if (data.newRoom)
-                socket.join(data.newRoom);
-        }));
         socket.on("send_message", (data) => __awaiter(void 0, void 0, void 0, function* () {
             var _d;
             try {
-                console.log(data.roomId);
                 const _id = (0, uuid_1.v4)();
                 const message = messEmit({
                     _id,
@@ -429,6 +427,7 @@ const SocketConnect = (server) => {
             }
         }));
         socket.on("join_room_with_link", (data) => __awaiter(void 0, void 0, void 0, function* () {
+            socket.join(data.roomId);
             const _id = (0, uuid_1.v4)();
             const userExist = yield Room_1.default.findOne({
                 _id: data.roomId,
@@ -445,7 +444,6 @@ const SocketConnect = (server) => {
                     actedByUser: data.userJoin,
                 }),
             };
-            socket.join(data.roomId);
             io.in(data.roomId).emit("receive_send_message", Object.assign({}, message));
             io.emit("receive_last_message", {
                 lastMessage: message.message,
@@ -467,9 +465,5 @@ const SocketConnect = (server) => {
         });
     };
     io.on("connection", connection);
-    io.on("disconnect", (socket) => {
-        io.disconnectSockets();
-        console.log("disconnect at  " + socket);
-    });
 };
 exports.default = SocketConnect;
