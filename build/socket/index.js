@@ -85,10 +85,10 @@ const SocketConnect = (server) => {
                 name: data.initiator.displayName,
                 initiator: data.initiator._id,
                 users: [
-                    { user: data.initiator, nickname: null },
+                    { user: data.initiator, nickname: "" },
                     ...data.usersAdded.map((user) => ({
                         user,
-                        nickname: null,
+                        nickname: "",
                     })),
                 ],
                 lastMessage: messEmit(Object.assign(Object.assign({}, lastMessage), { actedByUser: data.initiator })),
@@ -105,6 +105,7 @@ const SocketConnect = (server) => {
                     })),
                 ], lastMessage: lastMessage._id }));
             yield Message_1.default.insertMany(message);
+            io.emit("receive_reset_room", "");
         }));
         socket.on("create_room_with_private", (data) => __awaiter(void 0, void 0, void 0, function* () {
             const _idRoom = (0, uuid_1.v4)();
@@ -248,31 +249,33 @@ const SocketConnect = (server) => {
             }
         }));
         socket.on("revoke_message", (data) => __awaiter(void 0, void 0, void 0, function* () {
-            var _e;
             try {
-                io.in(data.roomId).emit("receive_revoke_message", {
-                    type: data.type,
-                    messageId: data.messageId,
-                });
                 if (data.type === "Revocation") {
+                    io.in(data.roomId).emit("receive_revoke_message", {
+                        type: data.type,
+                        messageId: data.messageId,
+                    });
                     if (data.lastMessage) {
                         io.emit("receive_last_message", {
                             lastMessage: Object.assign(Object.assign({}, data.lastMessage), { text: "đã thu hồi một tin nhắn", type: "Revocation", actedByUser: data.userRevoke }),
                         });
                         yield Room_1.default.updateOne({
                             _id: data.roomId,
-                            lastMessage: (_e = data.lastMessage) === null || _e === void 0 ? void 0 : _e._id,
-                        });
+                        }, { lastMessage: data.lastMessage._id });
                     }
+                    yield Message_1.default.updateOne({ _id: data.messageId }, {
+                        type: "Revocation",
+                        text: "đã thu hồi một tin nhắn",
+                        actedByUser: data.userRevoke._id,
+                    });
                 }
-                yield Message_1.default.updateOne({ _id: data.messageId }, { type: data.type, text: "đã thu hồi một tin nhắn" });
             }
             catch (error) {
                 console.log(error);
             }
         }));
         socket.on("remove_user_from_room", (data) => __awaiter(void 0, void 0, void 0, function* () {
-            var _f, _g;
+            var _e, _f;
             const _id = (0, uuid_1.v4)();
             const userRemoved = data.userRemoved;
             const message = messEmit({
@@ -280,7 +283,7 @@ const SocketConnect = (server) => {
                 roomId: data.roomId,
                 text: `đã xóa ${userRemoved.nickname
                     ? userRemoved.nickname
-                    : (_f = userRemoved.user) === null || _f === void 0 ? void 0 : _f.displayName} khỏi phòng chat`,
+                    : (_e = userRemoved.user) === null || _e === void 0 ? void 0 : _e.displayName} khỏi phòng chat`,
                 actedByUser: data.admin,
                 type: "Notification",
             });
@@ -292,7 +295,7 @@ const SocketConnect = (server) => {
             });
             yield Message_1.default.create(Object.assign(Object.assign({}, message), { actedByUser: data.admin._id }));
             yield Room_1.default.updateOne({ _id: data.roomId }, {
-                $pull: { users: { user: (_g = userRemoved.user) === null || _g === void 0 ? void 0 : _g._id } },
+                $pull: { users: { user: (_f = userRemoved.user) === null || _f === void 0 ? void 0 : _f._id } },
                 lastMessage: _id,
             });
             const userClientOnline = userOnline.find((u) => { var _a; return ((_a = userRemoved.user) === null || _a === void 0 ? void 0 : _a._id) === Object.values(u)[0]; });
@@ -305,7 +308,7 @@ const SocketConnect = (server) => {
             io.to(clientId).emit("receive_reset_room", data.roomId);
         }));
         socket.on("leave_room", (data) => __awaiter(void 0, void 0, void 0, function* () {
-            var _h, _j;
+            var _g, _h;
             const _id = (0, uuid_1.v4)();
             const userLeave = data.userLeave;
             const message = messEmit({
@@ -322,8 +325,8 @@ const SocketConnect = (server) => {
             io.emit("receive_last_message", {
                 lastMessage: message,
             });
-            yield Message_1.default.create(Object.assign(Object.assign({}, message), { actedByUser: (_h = data.userLeave.user) === null || _h === void 0 ? void 0 : _h._id }));
-            yield Room_1.default.updateOne({ _id: data.roomId }, { lastMessage: _id, $pull: { users: { user: (_j = userLeave.user) === null || _j === void 0 ? void 0 : _j._id } } });
+            yield Message_1.default.create(Object.assign(Object.assign({}, message), { actedByUser: (_g = data.userLeave.user) === null || _g === void 0 ? void 0 : _g._id }));
+            yield Room_1.default.updateOne({ _id: data.roomId }, { lastMessage: _id, $pull: { users: { user: (_h = userLeave.user) === null || _h === void 0 ? void 0 : _h._id } } });
             socket.emit("receive_reset_room", data.roomId);
             socket.in(data.roomId).emit("receive_reset_room", "");
         }));

@@ -135,7 +135,8 @@ router.get("/getRooms/:id", async (req, res) => {
       })
       .populate("users.user")
       .populate("users.nickname");
-    return res.json({ room: room });
+
+    return res.json({ room });
   } catch (error) {
     console.log(error);
   }

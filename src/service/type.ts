@@ -1,29 +1,29 @@
-export interface User {
+export type User = {
   _id: string;
   displayName: string;
   email: string;
   photoURL: string;
-}
-export interface Reaction {
+};
+export type Reaction = {
   user: User;
   name: string;
-}
-export interface UserInRoom {
+};
+export type UserInRoom = {
   user: User | null;
-  nickname?: string | null;
-}
-export interface Message {
+  nickname: string;
+};
+export type Message = {
   _id: string;
   roomId: string;
   text: string;
   type: "Notification" | "Sending" | "Revocation";
   files: string[];
-  reply: Message;
-  reaction: Reaction[] | string[];
-  actedByUser: User | string | null;
+  reply: Message|null;
+  reaction: Reaction[];
+  actedByUser: User | null;
   createdAt: Date;
-}
-export interface Room {
+};
+export type Room = {
   _id: string;
   type: "Group" | "Private";
   isAcceptLink?: boolean;
@@ -32,7 +32,7 @@ export interface Room {
   photoURL: string;
   users: UserInRoom[];
   lastMessage: Message;
-}
-export interface Media {
+};
+export type Media = {
   files: string[];
-}
+};

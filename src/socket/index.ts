@@ -126,10 +126,10 @@ const SocketConnect = (server: any) => {
           name: data.initiator.displayName as string,
           initiator: data.initiator._id,
           users: [
-            { user: data.initiator, nickname: null },
+            { user: data.initiator, nickname: "" },
             ...(data.usersAdded.map((user) => ({
               user,
-              nickname: null,
+              nickname: "",
             })) as UserInRoom[]),
           ],
           lastMessage: messEmit({
@@ -153,6 +153,7 @@ const SocketConnect = (server: any) => {
           lastMessage: lastMessage._id,
         });
         await MessageModel.insertMany(message);
+        io.emit("receive_reset_room", "");
       }
     );
     socket.on(
@@ -335,12 +336,11 @@ const SocketConnect = (server: any) => {
         lastMessage: Message | null;
       }) => {
         try {
-          io.in(data.roomId).emit("receive_revoke_message", {
-            type: data.type,
-            messageId: data.messageId,
-          });
-
           if (data.type === "Revocation") {
+            io.in(data.roomId).emit("receive_revoke_message", {
+              type: data.type,
+              messageId: data.messageId,
+            });
             if (data.lastMessage) {
               io.emit("receive_last_message", {
                 lastMessage: {
@@ -350,16 +350,22 @@ const SocketConnect = (server: any) => {
                   actedByUser: data.userRevoke,
                 },
               });
-              await RoomModel.updateOne({
-                _id: data.roomId,
-                lastMessage: data.lastMessage?._id,
-              });
+              await RoomModel.updateOne(
+                {
+                  _id: data.roomId,
+                },
+                { lastMessage: data.lastMessage._id }
+              );
             }
+            await MessageModel.updateOne(
+              { _id: data.messageId },
+              {
+                type: "Revocation",
+                text: "đã thu hồi một tin nhắn",
+                actedByUser: data.userRevoke._id,
+              }
+            );
           }
-          await MessageModel.updateOne(
-            { _id: data.messageId },
-            { type: data.type, text: "đã thu hồi một tin nhắn" }
-          );
         } catch (error) {
           console.log(error);
         }

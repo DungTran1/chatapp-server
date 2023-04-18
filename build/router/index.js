@@ -143,7 +143,7 @@ router.get("/getRooms/:id", (req, res) => __awaiter(void 0, void 0, void 0, func
         })
             .populate("users.user")
             .populate("users.nickname");
-        return res.json({ room: room });
+        return res.json({ room });
     }
     catch (error) {
         console.log(error);
