@@ -430,26 +430,26 @@ const SocketConnect = (server) => {
             }
         }));
         socket.on("join_room_with_link", (data) => __awaiter(void 0, void 0, void 0, function* () {
-            socket.join(data.roomId);
-            const _id = (0, uuid_1.v4)();
             const userExist = yield Room_1.default.findOne({
                 _id: data.roomId,
-                users: { $elemMatch: { user: data.userJoin._id } },
+                "users.user": data.userJoin._id,
             });
+            socket.join(data.roomId);
             if (userExist)
                 return;
-            const message = {
-                message: messEmit({
-                    _id,
-                    roomId: data.roomId,
-                    text: "đã tham gia",
-                    type: "Notification",
-                    actedByUser: data.userJoin,
-                }),
-            };
-            io.in(data.roomId).emit("receive_send_message", Object.assign({}, message));
+            const _id = (0, uuid_1.v4)();
+            const message = messEmit({
+                _id,
+                roomId: data.roomId,
+                text: "đã tham gia",
+                type: "Notification",
+                actedByUser: data.userJoin,
+            });
+            io.in(data.roomId).emit("receive_send_message", {
+                message,
+            });
             io.emit("receive_last_message", {
-                lastMessage: message.message,
+                lastMessage: message,
             });
             yield Room_1.default.updateOne({ _id: data.roomId }, {
                 $push: { users: { user: data.userJoin._id } },

@@ -592,30 +592,27 @@ const SocketConnect = (server: any) => {
     socket.on(
       "join_room_with_link",
       async (data: { userJoin: User; roomId: string }) => {
-        socket.join(data.roomId);
-        const _id = uuidv4();
         const userExist = await RoomModel.findOne({
           _id: data.roomId,
-          users: { $elemMatch: { user: data.userJoin._id } },
+          "users.user": data.userJoin._id,
+        });
+        socket.join(data.roomId);
+        if (userExist) return;
+        const _id = uuidv4();
+        const message = messEmit({
+          _id,
+          roomId: data.roomId,
+          text: "đã tham gia",
+          type: "Notification",
+          actedByUser: data.userJoin,
         });
 
-        if (userExist) return;
-        const message = {
-          message: messEmit({
-            _id,
-            roomId: data.roomId,
-            text: "đã tham gia",
-            type: "Notification",
-            actedByUser: data.userJoin,
-          }),
-        };
-
         io.in(data.roomId).emit("receive_send_message", {
-          ...message,
+          message,
         });
 
         io.emit("receive_last_message", {
-          lastMessage: message.message,
+          lastMessage: message,
         });
         await RoomModel.updateOne(
           { _id: data.roomId },
@@ -624,6 +621,7 @@ const SocketConnect = (server: any) => {
             lastMessage: _id,
           }
         );
+
         await MessageModel.create({
           ...message,
           actedByUser: data.userJoin._id,
