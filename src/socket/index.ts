@@ -208,6 +208,16 @@ const SocketConnect = (server: any) => {
           ],
           lastMessage: _idMess,
         });
+        const userClientOnline = userOnline.find(
+          (u) => data.UserChatWith._id === Object.values(u)[0]
+        );
+        if (!userClientOnline) {
+          socket.emit("receive_reset_room", "");
+          return;
+        }
+        const clientId = Object.keys(userClientOnline)[0];
+        socket.emit("receive_reset_room", "");
+        io.to(clientId).emit("receive_reset_room", "");
       }
     );
     socket.on(

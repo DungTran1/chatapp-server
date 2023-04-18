@@ -157,6 +157,14 @@ const SocketConnect = (server) => {
                 ],
                 lastMessage: _idMess,
             });
+            const userClientOnline = userOnline.find((u) => data.UserChatWith._id === Object.values(u)[0]);
+            if (!userClientOnline) {
+                socket.emit("receive_reset_room", "");
+                return;
+            }
+            const clientId = Object.keys(userClientOnline)[0];
+            socket.emit("receive_reset_room", "");
+            io.to(clientId).emit("receive_reset_room", "");
         }));
         socket.on("appoitment_as_administrator", (data) => __awaiter(void 0, void 0, void 0, function* () {
             var _a, _b, _c;
