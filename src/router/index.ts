@@ -153,15 +153,15 @@ router.get("/getMessage/:id", async (req, res) => {
       .skip(
         page === 1
           ? 0 + skipWhileNewMessage
-          : page * 10 - 10 + skipWhileNewMessage
+          : page * 20 - 20 + skipWhileNewMessage
       )
-      .limit(10)
+      .limit(20)
       .sort({ createdAt: -1 });
 
     return res.json({
       status: true,
       messages,
-      total_results: Math.ceil(countUser / 10),
+      total_results: Math.ceil(countUser / 20),
     });
   } catch (error) {
     console.log(error);

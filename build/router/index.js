@@ -160,13 +160,13 @@ router.get("/getMessage/:id", (req, res) => __awaiter(void 0, void 0, void 0, fu
             .populate("reply")
             .skip(page === 1
             ? 0 + skipWhileNewMessage
-            : page * 10 - 10 + skipWhileNewMessage)
-            .limit(10)
+            : page * 20 - 20 + skipWhileNewMessage)
+            .limit(20)
             .sort({ createdAt: -1 });
         return res.json({
             status: true,
             messages,
-            total_results: Math.ceil(countUser / 10),
+            total_results: Math.ceil(countUser / 20),
         });
     }
     catch (error) {
